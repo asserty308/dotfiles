@@ -80,6 +80,3 @@ git push
 git push --tags
 
 echo "Created git tag $TAG and pushed changes to remote repository"
-
-# Documentation
-dart doc .

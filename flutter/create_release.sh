@@ -4,9 +4,11 @@
 # - Ensures you are on the main branch.
 # - Ensures there are no uncommitted changes before creating a release.
 # - Runs tests and stops on failure.
-# - Always increments the build number in pubspec.yaml.
+# - Increments the build number in pubspec.yaml when one is present.
 # - Optionally sets an explicit app version name in pubspec.yaml.
-#   Pass only the version name as x.y.z; the script will automatically increment the build number.
+#   Pass only the version name as x.y.z; the script preserves the existing version style.
+#   Packages that use x.y.z+build keep their incremented build number.
+#   Packages that use x.y.z keep that format unchanged.
 #   When setting a version here, do not set the git tag manually; the script will tag it.
 # - Formats code before release.
 # - Commits and pushes changes made by formatting or versioning.
@@ -65,12 +67,16 @@ for ((i=1; i<=$#; i++)); do
 done
 
 current_version=$(grep '^version: ' pubspec.yaml | awk '{print $2}')
-if [[ "$current_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)\+([0-9]+)$ ]]; then
+if [[ "$current_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(\+([0-9]+))?$ ]]; then
   current_version_name="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
-  current_build="${BASH_REMATCH[4]}"
-  new_build=$((current_build + 1))
+  has_build_number=false
+  if [ -n "${BASH_REMATCH[5]}" ]; then
+    has_build_number=true
+    current_build="${BASH_REMATCH[5]}"
+    new_build=$((current_build + 1))
+  fi
 else
-  echo -e "\033[31mInvalid version format in pubspec.yaml. Expected x.y.z+build.\033[0m"
+  echo -e "\033[31mInvalid version format in pubspec.yaml. Expected x.y.z or x.y.z+build.\033[0m"
   exit 1
 fi
 
@@ -85,14 +91,20 @@ else
   new_version_name="$current_version_name"
 fi
 
-new_version="${new_version_name}+${new_build}"
+if [ "$has_build_number" = true ]; then
+  new_version="${new_version_name}+${new_build}"
+else
+  new_version="${new_version_name}"
+fi
 
 sed -i '' "s/^version: .*/version: ${new_version}/" pubspec.yaml
 echo "Version set to ${new_version}"
 
 git add .
-git commit -m "chore: bump version to ${new_version}"
-git push origin main
+if ! git diff --cached --quiet; then
+  git commit -m "chore: bump version to ${new_version}"
+  git push origin main
+fi
 
 # add version-tag from pubspec.yaml when not already present
 version=$(grep '^version: ' pubspec.yaml | awk '{print $2}')

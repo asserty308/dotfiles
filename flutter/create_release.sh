@@ -1,7 +1,7 @@
 # Release creation script.
 #
 # Features:
-# - Ensures you are on the main branch.
+# - Ensures you are on the main branch unless --force is provided.
 # - Ensures there are no uncommitted changes before creating a release.
 # - Runs tests and stops on failure.
 # - Increments the build number in pubspec.yaml when one is present.
@@ -15,12 +15,21 @@
 # - Creates and pushes a git tag based on the pubspec.yaml version.
 #
 # How to call:
-# ./create_release.sh [--version|-v [x.y.z]]
+# ./create_release.sh [--force] [--version|-v [x.y.z]]
 
-# make sure we are on main branch. exit when not
+# parse optional arguments used before branch validation
+force=false
+for arg in "$@"; do
+  if [ "$arg" = "--force" ]; then
+    force=true
+    break
+  fi
+done
+
+# make sure we are on main branch. exit when not, unless --force is provided
 current_branch=$(git rev-parse --abbrev-ref HEAD)
-if [ "$current_branch" != "main" ]; then
-    echo -e "\033[31mYou are not on the main branch. Please switch to main before creating a release.\033[0m"
+if [ "$current_branch" != "main" ] && [ "$force" = false ]; then
+    echo -e "\033[31mYou are not on the main branch. Please switch to main before creating a release, or use --force to continue.\033[0m"
     exit 1
 fi
 

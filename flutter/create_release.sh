@@ -15,7 +15,7 @@
 # - Creates and pushes a git tag based on the pubspec.yaml version.
 #
 # How to call:
-# ./create_release.sh [--version|-v [x.y.z]]
+# ./create_release.sh [--build|--patch|--minor|--major] [--version|-v [x.y.z]]
 
 # make sure we are on main branch. exit when not
 current_branch=$(git rev-parse --abbrev-ref HEAD)
@@ -48,9 +48,17 @@ fi
 # parse optional version name override
 version_bump=false
 version_value=""
+bump_type=""
 for ((i=1; i<=$#; i++)); do
   arg=${!i}
   case "$arg" in
+    --build|--patch|--minor|--major)
+      if [ -n "$bump_type" ] && [ "$bump_type" != "${arg#--}" ]; then
+        echo -e "\033[31mChoose only one version bump argument.\033[0m"
+        exit 1
+      fi
+      bump_type="${arg#--}"
+      ;;
     --version|-v)
       next_index=$((i + 1))
       next_arg=${!next_index}
@@ -66,9 +74,17 @@ for ((i=1; i<=$#; i++)); do
   esac
 done
 
+if [ -n "$bump_type" ] && [ -n "$version_value" ]; then
+  echo -e "\033[31mUse either a version bump argument or --version, not both.\033[0m"
+  exit 1
+fi
+
 current_version=$(grep '^version: ' pubspec.yaml | awk '{print $2}')
 if [[ "$current_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(\+([0-9]+))?$ ]]; then
-  current_version_name="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
+  current_major="${BASH_REMATCH[1]}"
+  current_minor="${BASH_REMATCH[2]}"
+  current_patch="${BASH_REMATCH[3]}"
+  current_version_name="${current_major}.${current_minor}.${current_patch}"
   has_build_number=false
   if [ -n "${BASH_REMATCH[5]}" ]; then
     has_build_number=true
@@ -90,6 +106,18 @@ if [ -n "$version_value" ]; then
 else
   new_version_name="$current_version_name"
 fi
+
+case "$bump_type" in
+  patch)
+    new_version_name="${current_major}.${current_minor}.$((current_patch + 1))"
+    ;;
+  minor)
+    new_version_name="${current_major}.$((current_minor + 1)).0"
+    ;;
+  major)
+    new_version_name="$((current_major + 1)).0.0"
+    ;;
+esac
 
 if [ "$has_build_number" = true ]; then
   new_version="${new_version_name}+${new_build}"
